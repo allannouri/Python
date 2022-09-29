@@ -50,3 +50,4 @@ plt.plot(fit, '.', color='Blue', label='Predicted')
 plt.legend()
 plt.savefig('Model.png')
 
+"hej"
