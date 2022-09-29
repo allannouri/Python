@@ -2,10 +2,10 @@ import numpy as np
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
-
 plt.style.use('seaborn-whitegrid')
 import statsmodels.api as sm
 import nasdaqdatalink as nasdaq
+
 
 # WTI Crude Oil price from the US Department of Energy:
 df_gdp = nasdaq.get("FRED/GDP")
@@ -49,5 +49,3 @@ plt.plot(y, color='Black', label='Actual')
 plt.plot(fit, '.', color='Blue', label='Predicted')
 plt.legend()
 plt.savefig('Model.png')
-
-"hej"
