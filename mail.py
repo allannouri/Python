@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime
 import os
 
-df = pd.read_excel("F:/Research/_Performing Credit Quantitative Research/R/Sharepoint/EarningsNote_check.xlsx")
+df = pd.read_excel("XX")
 
 # Open up an outlook email
 outlook = win32.gencache.EnsureDispatch('Outlook.Application')
