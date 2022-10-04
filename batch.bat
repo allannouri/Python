@@ -1,1 +1,1 @@
-"F:\Research\_Performing Credit Quantitative Research\Python\test\venv\Scripts\python.exe" "F:\Research\_Performing Credit Quantitative Research\Python\test\mail.py"
+"...\venv\Scripts\python.exe" "...\mail.py"
