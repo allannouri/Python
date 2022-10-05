@@ -2,7 +2,7 @@ import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.engine import URL
 
-connection_string = "Driver={SQL Server}; Server=db-everest-prod; Database=C4DW; Trusted_Connection=yes"
+connection_string = "Driver={SQL Server}; Server=XX; Database=XX; Trusted_Connection=yes"
 connection_url = URL.create("mssql+pyodbc", query={"odbc_connect": connection_string})
 engine = create_engine(connection_url)
 
