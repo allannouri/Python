@@ -1,0 +1,416 @@
+import numpy as np
+import pandas as pd
+from scipy.optimize import minimize
+from scipy.stats import norm
+from statsmodels.tsa.stattools import pacf
+from statsmodels.stats.diagnostic import acorr_ljungbox
+
+# AR function
+def AR(y, lag=1):
+    rho = pacf(y, nlags=lag)
+    delta = np.mean(y) / (1 - np.sum(rho))
+    sigma = np.sqrt(np.var(y) / (1 - np.sum(rho)**2))
+    params = np.append([delta], [rho, sigma])
+
+    def mle(params):
+        delta = params[0]
+        rho = params[1:1+lag]
+        sigma = params[-1]
+        residuals = y - np.dot(lag_matrix(y, maxlag=lag), rho)
+        log_likelihood = -np.sum(norm.logpdf(residuals, loc=delta, scale=sigma))
+        return log_likelihood
+
+    result = minimize(mle, params, method='Nelder-Mead')
+    print(result)
+
+# MS function
+def MS(y, lag=1, regime=2):
+    # This function is more complex and may require additional libraries or custom code to implement in Python.
+    # The 'vars' and 'rmgarch' libraries in R have functionalities that are not directly available in Python.
+    # You might want to look into the 'PyFlux' or 'arch' libraries for similar functionalities.
+    pass
+
+# OLS function
+def OLS(y, x, test=False):
+    beta = np.linalg.lstsq(x, y, rcond=None)[0]
+    yfit = np.dot(x, beta)
+    residuals = y - yfit
+    sigma = np.dot(residuals.T, residuals) / (len(y) - len(beta))
+    stderr = np.sqrt(np.diag(sigma * np.linalg.inv(np.dot(x.T, x))))
+    t_stat = beta / stderr
+    print(f"Estimates: {beta}, Std. Errors: {stderr}, t-statistics: {t_stat}")
+
+    if test:
+        lbvalue, pvalue = acorr_ljungbox(residuals, lags=[5])
+        print(f"Ljung-Box test p-value: {pvalue}")
+
+
+import numpy as np
+from scipy.optimize import minimize
+from scipy.stats import norm
+from statsmodels.tsa.stattools import pacf
+from statsmodels.stats.diagnostic import acorr_ljungbox
+
+# ARCH function
+def ARCH(y, AR_lag=1, ARCH_lag=1):
+    rho = pacf(y, nlags=AR_lag)
+    delta = np.mean(y) / (1 - np.sum(rho))
+    alfa = pacf(y**2, nlags=ARCH_lag)
+    omega = np.var(y) / (1 - np.sum(alfa))
+    params = np.append([delta], [rho, omega, alfa])
+
+    def mle(params):
+        delta = params[0]
+        rho = params[1:1+AR_lag]
+        omega = params[1+AR_lag]
+        alfa = params[2+AR_lag:]
+        residuals = y - np.dot(lag_matrix(y, maxlag=AR_lag), rho) - delta
+        var_eq = omega + np.dot(lag_matrix(residuals**2, maxlag=ARCH_lag), alfa)
+        log_likelihood = -np.sum(norm.logpdf(residuals, loc=0, scale=np.sqrt(var_eq)))
+        return log_likelihood
+
+    result = minimize(mle, params, method='Nelder-Mead')
+    print(result)
+
+# MS3 function
+def MS3(y, lag=1, regime=3, Pmatrix=[0.985,0.015,0.02,0.8,0.0001,0.4]):
+    # This function is more complex and may require additional libraries or custom code to implement in Python.
+    # The 'vars' and 'rmgarch' libraries in R have functionalities that are not directly available in Python.
+    # You might want to look into the 'PyFlux' or 'arch' libraries for similar functionalities.
+    pass
+import numpy as np
+from statsmodels.tsa.api import VAR
+from arch import arch_model
+from pykalman import KalmanFilter
+from scipy.stats import norm
+from statsmodels.tsa.stattools import pacf
+from statsmodels.regression.linear_model import OLS
+
+# VAR function
+def VAR_model(y, lag=1):
+    model = VAR(y)
+    results = model.fit(lag)
+    print(results.summary())
+    return results
+
+# MGARCH function
+def MGARCH(y, lag=1):
+    model = arch_model(y, vol='Garch', p=lag, q=lag)
+    results = model.fit(update_freq=5)
+    print(results.summary())
+    return results
+
+# Kalman Filter function
+def kalman_filter(y, x, t, ols_window=20):
+    delta = np.mean(y)
+    transition_matrices = np.eye(len(y))
+    observation_matrices = np.vstack([x, np.ones(len(x))]).T[:, np.newaxis]
+    kf = KalmanFilter(transition_matrices=transition_matrices, 
+                      observation_matrices=observation_matrices,
+                      initial_state_mean=delta, 
+                      initial_state_covariance=1.0)
+    state_means, state_covs = kf.filter(y)
+    return state_means, state_covs
+
+import numpy as np
+from scipy.optimize import minimize
+from scipy.stats import norm
+from statsmodels.tsa.stattools import pacf
+from statsmodels.regression.linear_model import OLS
+from pykalman import KalmanFilter
+import matplotlib.pyplot as plt
+from pandas.plotting import register_matplotlib_converters
+register_matplotlib_converters()
+
+# Kalman Filter with rolling window function
+def kalman_filter_rol(y, x, t, kf_window=30, ols_window=20):
+    delta = np.mean(y)
+    transition_matrices = np.eye(len(y))
+    observation_matrices = np.vstack([x, np.ones(len(x))]).T[:, np.newaxis]
+    kf = KalmanFilter(transition_matrices=transition_matrices, 
+                      observation_matrices=observation_matrices,
+                      initial_state_mean=delta, 
+                      initial_state_covariance=1.0)
+    state_means, state_covs = kf.filter(y)
+
+    # MLE starting values
+    omega = np.std(y)
+    sigma = np.std(y - np.dot(x, state_means[:-1]))
+
+    # Kalman filter starting values
+    pred_beta = np.empty_like(y)
+    pred_beta_variance = np.empty_like(y)
+    kalman_gain = np.empty_like(y)
+    measurement_error = np.empty_like(y)
+    measurement_variance = np.empty_like(y)
+
+    llcontribution = np.zeros_like(y)
+
+    filt_beta = np.full_like(y, state_means[0])
+    filt_beta_variance = np.full_like(y, sigma**2)
+
+    def llf(params, index=1):
+        omega, sigma = params
+
+        for t in range(1, len(y)):
+            pred_beta[t] = filt_beta[t-1]  # E(beta_t | y_1:t-1) = E(gamma*beta_t-1+eta_t | y_t:t-1)
+            pred_beta_variance[t] = filt_beta_variance[t-1] + sigma**2  # E(beta_t-E(beta_t | y_t:t-1) | y_t:t-1)^2
+
+            measurement = pred_beta[t] * x[t]  # E(y_t|y_t:t-1) = E(beta_t|y_1:t-1)*x_t
+            measurement_error[t] = y[t] - measurement  # y_t-E(y_t|y_1:t-1)
+            measurement_variance[t] = pred_beta_variance[t] * x[t]**2 + omega**2  # E(y_t|y_t:t-1)^2
+            kalman_gain[t] = pred_beta_variance[t] * x[t] / measurement_variance[t]  # E((y_t-E(y_t|y_1:t-1))*(beta_t-E(beta_t|y_1:t-1)) | y_1:t-1)/E(y_t|y_1:t-1)^2
+
+            llcontribution[t] = np.log(norm.pdf(measurement_error[t], 0, measurement_variance[t]))
+
+            filt_beta[t] = pred_beta[t] + kalman_gain[t] * measurement_error[t]  # E(beta_t | y_1:t)
+            filt_beta_variance[t] = (1 - kalman_gain[t] * x[t]) * pred_beta_variance[t]  # E(beta_t| y_1:t)^2
+
+        loglikelihood = np.sum(llcontribution)
+
+        if index == 1:
+            return -loglikelihood
+
+        if index == 2:
+            return filt_beta
+
+    result = minimize(llf, [omega, sigma], method='Nelder-Mead')
+    omega, sigma = result.x
+
+    beta_kf = llf(result.x, index=2)
+    beta_kf_lower = norm.ppf(0.025, loc=beta_kf[:-1], scale=sigma)
+    beta_kf_upper = norm.ppf(0.975, loc=beta_kf[:-1], scale=sigma)
+
+    y_kf = beta_kf * x
+    y_ols = state_means[0] * x
+
+    window = ols_window
+    beta_ols_rolling = np.empty_like(y)
+    for j in range(len(y) - window):
+        model = OLS(y[j:j+window], x[j:j+window])
+        results = model.fit()
+        beta_ols_rolling[j+window-1:j+window] = results.params[0]
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(t, beta_kf, label='Kalman filter')
+    plt.plot(t, beta_ols_rolling, label=f'Rolling OLS - window: {window}')
+    plt.fill_between(t, beta_kf_lower, beta_kf_upper, color='gray', alpha=0.2)
+    plt.title('Estimated beta: $y_t = \\beta_t x_t + \\varepsilon_t$')
+    plt.legend()
+    plt.show()
+
+    return pd.DataFrame({'t': t, 'beta_kf': beta_kf, 'beta_kf_lower': beta_kf_lower, 'beta_kf_upper': beta_kf_upper, 'beta_ols_rolling': beta_ols_rolling})
+
+import numpy as np
+import pandas as pd
+from scipy.optimize import minimize
+from scipy.stats import norm
+from statsmodels.regression.linear_model import OLS
+
+def KF(y, x, t, ols_window=30):
+    y = np.array(y).reshape(-1, 1)
+    N, k = x.shape
+
+    # OLS estimation
+    est = OLS(y, x).fit()
+    beta_ols = est.params
+    errors = est.resid
+
+    # MLE starting values
+    omega = 0.4
+    sigma = np.diag(errors)
+    gamma = np.eye(k)
+
+    par = np.concatenate(([omega], np.diag(sigma)))
+
+    # Kalman filter starting values
+    pred_beta = np.empty((N, k))
+    pred_beta_variance = np.empty((N, k, k))
+
+    kalman_gain = np.empty((N, k))
+    measurement_error = np.empty(N-1)
+    measurement_variance = np.empty(N-1)
+
+    llcontribution = np.zeros(N-1)
+
+    filt_beta = np.empty((N, k))
+    filt_beta[0] = beta_ols
+    filt_beta_variance = np.empty((N, k, k))
+    filt_beta_variance[0] = sigma @ sigma.T
+
+    def llf(par, index=1):
+        omega = par[0]
+        sigma = np.diag(par[1:])
+
+        for t in range(1, N):
+            pred_beta[t] = gamma @ filt_beta[t-1]
+            pred_beta_variance[t] = gamma.T @ gamma @ filt_beta_variance[t-1] + sigma @ sigma.T
+
+            measurement = pred_beta[t] @ x[t]
+            measurement_error[t-1] = y[t] - measurement
+            measurement_variance[t-1] = x[t] @ pred_beta_variance[t] @ x[t] + omega**2
+            kalman_gain[t] = pred_beta_variance[t] @ x[t] / measurement_variance[t-1]
+
+            llcontribution[t-1] = np.log(norm.pdf(measurement_error[t-1], 0, measurement_variance[t-1]))
+
+            filt_beta[t] = pred_beta[t] + kalman_gain[t] * measurement_error[t-1]
+            filt_beta_variance[t] = (np.eye(k) - np.outer(kalman_gain[t], x[t])) @ pred_beta_variance[t]
+
+        loglikelihood = np.sum(llcontribution)
+
+        if index == 1:
+            return -loglikelihood
+
+        if index == 2:
+            return filt_beta
+
+    llf(par)
+    est = minimize(llf, par, method='BFGS')
+    par = est.x
+    omega = est.x[0]
+    sigma = est.x[1:]
+
+    parest = np.concatenate(([omega], sigma))
+
+    fisher = np.linalg.inv(est.hess_inv)
+    err = np.sqrt(np.diag(fisher))
+
+    lower = est.x - 1.96 * err
+    upper = est.x + 1.96 * err
+
+    beta_kf = llf(par, index=2)
+    beta_kf_lower = beta_kf.copy()
+    beta_kf_upper = beta_kf.copy()
+    for i in range(1, len(beta_kf)):
+        beta_kf_lower[i] = norm.ppf(0.025, loc=beta_kf[i-1], scale=np.abs(sigma))
+        beta_kf_upper[i] = norm.ppf(0.975, loc=beta_kf[i-1], scale=np.abs(sigma))
+
+    window = ols_window
+    beta_ols_rolling = np.empty((len(y), 2))
+    for j in range(len(y) - window):
+        est = OLS(y[j:(j+window)], x[j:(j+window)]).fit()
+        beta_ols_rolling[(j+window-1):(j+window)] = est.params
+
+    output = pd.DataFrame(np.hstack([t, beta_kf, beta_kf_lower, beta_kf_upper, beta_ols_rolling]),
+                          columns=[\"t\", \"beta_kf1\", \"beta_kf2\", \"beta_kf_lower1\", \"beta_kf_lower2\", \"beta_kf_upper1\", \"beta_kf_upper2\",\"beta_ols_rolling1\",\"beta_ols_rolling2\"])
+    return output, parest
+
+
+import numpy as np
+import pandas as pd
+from scipy.optimize import minimize
+from scipy.stats import norm
+from statsmodels.regression.linear_model import OLS
+
+def PCA(Data, Loadings=1, EWMA=False, Lambda=0.92):
+    if EWMA:
+        if Lambda > 1 or Lambda < 0:
+            return "Lambda should be in (0,1)"
+        w = (1 - Lambda) * Lambda ** np.arange(len(Data))
+        Data = w * Data
+
+    # Re-center
+    Data = Data - np.mean(Data, axis=0)
+
+    # Determine covariance matrix
+    A = np.cov(Data, rowvar=False)
+
+    # Find eigenvalues
+    A = np.linalg.eig(A)
+
+    # Components
+    C = pd.DataFrame(A[1][:, :Loadings])
+    C.columns = ["Loadings " + str(i) for i in range(1, Loadings + 1)]
+    return C
+
+def KF4(y, x, t, ols_window=30):
+    y = np.array(y).reshape(-1, 1)
+    k = x.shape[1]
+    N = len(y)
+    x = np.array(x)
+
+    est = OLS(y, x).fit()
+    beta_ols = est.params
+    errors = est.bse
+
+    # MLE starting values
+    omega = np.std(y)
+    sigma = np.diag(errors)
+    gamma = np.eye(k)
+
+    par = np.concatenate(([omega], np.diag(sigma)))
+
+    # Kalman filter starting values
+    pred_beta = np.empty((N, k))
+    pred_beta_variance = np.empty((N, k, k))
+
+    kalman_gain = np.empty((N, k))
+    measurement_error = np.empty(N - 1)
+    measurement_variance = np.empty(N - 1)
+
+    llcontribution = np.zeros(N - 1)
+
+    filt_beta = np.empty((N, k))
+    filt_beta[0] = beta_ols
+    filt_beta_variance = np.empty((N, k, k))
+    filt_beta_variance[0] = sigma @ sigma.T
+
+    def llf(par, index=1):
+        omega = par[0]
+        sigma = np.diag(par[1:])
+
+        for t in range(1, N):
+            pred_beta[t] = gamma @ filt_beta[t - 1]  # E(beta_t | y_1:t-1) = E(gamma*beta_t-1+eta_t | y_t:t-1)
+            pred_beta_variance[t] = gamma.T @ gamma @ filt_beta_variance[t - 1] + sigma @ sigma.T  # E(beta_t-E(beta_t | y_t:t-1) | y_t:t-1)^2
+
+            measurement = pred_beta[t].T @ x[t]  # E(y_t|y_t:t-1) = E(beta_t|y_1:t-1)*x_t
+            measurement_error[t - 1] = y[t] - measurement  # y_t-E(y_t|y_1:t-1)
+            measurement_variance[t - 1] = x[t].T @ pred_beta_variance[t] @ x[t] + omega**2  # E(y_t|y_t:t-1)^2
+            kalman_gain[t] = pred_beta_variance[t] @ x[t] / measurement_variance[t - 1]  # E((y_t-E(y_t|y_1:t-1))*(beta_t-E(beta_t|y_1:t-1)) | y_1:t-1)/E(y_t|y_1:t-1)^2
+
+            llcontribution[t - 1] = np.log(norm.pdf(measurement_error[t - 1], 0, np.sqrt(measurement_variance[t - 1])))
+
+            filt_beta[t] = pred_beta[t] + kalman_gain[t] * measurement_error[t - 1]  # E(beta_t | y_1:t)
+            filt_beta_variance[t] = (np.eye(k) - np.outer(kalman_gain[t], x[t])) @ pred_beta_variance[t]  # E(beta_t| y_1:t)^2
+
+        loglikelihood = np.sum(llcontribution)
+
+        if index == 1:
+            return -loglikelihood
+
+        if index == 2:
+            return filt_beta
+
+    llf(par)
+    est = minimize(llf, par)
+    par = est.x
+    Estimation = pd.DataFrame(par)
+    Estimation.index = ["Omega", "Sigma1", "Sigma2", "Sigma3", "Sigma4"]
+    omega = est.x[0]
+    sigma = est.x[1:]
+
+    print("##################################################")
+    print("##################################################")
+    print("Kalman Filter")
+    print("Measurement eq.: Y_t = Beta_t*X_t + Omega*Eps_t")
+    print("State eq.: Beta_t = Gamma*Beta_t-1 + Sigma*Eta_t")
+    print("__________________________________________________")
+    print(Estimation)
+
+    beta_kf = llf(par, index=2)
+
+    beta_kf_lower = np.empty((len(beta_kf), k))
+    beta_kf_upper = np.empty((len(beta_kf), k))
+    for i in range(1, len(beta_kf)):
+        beta_kf_lower[i] = norm.ppf(0.025, loc=beta_kf[i - 1], scale=np.abs(sigma))
+        beta_kf_upper[i] = norm.ppf(0.975, loc=beta_kf[i - 1], scale=np.abs(sigma))
+
+    beta_ols_rolling = np.empty((len(y), k))
+    for j in range(len(y) - ols_window):
+        est = OLS(y[j:(j + ols_window)], x[j:(j + ols_window)]).fit()
+
+        beta_ols_rolling[(j + ols_window - 1):(j + ols_window)] = est.params
+
+    output = pd.DataFrame(np.column_stack((t, beta_kf[:, 0], beta_kf_lower[:, 0], beta_kf_upper[:, 0], beta_ols_rolling[:, 0])), columns=["t", "beta_kf1", "beta_kf_lower", "beta_kf_upper", "beta_ols_rolling"])
+    return output
+
