@@ -1,0 +1,47 @@
+import time
+
+from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.text.run import WD_BREAK
+from src.config import data_dir, doc_template
+
+def create_document_from_template(data_dict):
+    # Load the template document
+    doc = Document(doc_template)
+
+    # Loop through all the paragraphs in the document
+    for paragraph in doc.paragraphs:
+        # Get the entire text of the paragraph
+        paragraph_text = paragraph.text.upper()
+
+        # Check if the paragraph text contains a placeholder in the format [INDSÆT KEY HER]
+        for key in data_dict.keys():
+            placeholder = f"[INDSÆT {key.upper()} HER]"
+            if placeholder in paragraph_text:
+                # Clear the paragraph
+                paragraph.clear()
+
+                # Set the alignment of the paragraph to justified
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+
+                # Gather all the content for the key into a single string
+                for subkey, text in data_dict[key].items():
+
+                    if isinstance(text, list):
+                        text = [t.replace("%", " pct.") for t in text]
+                    else:
+                        text = text.replace("%", " pct.")
+
+                    # Add a run with the subkey in bold
+                    run = paragraph.add_run(f"{subkey}: ")
+                    run.bold = True
+
+                    # Add a run with the text
+                    paragraph.add_run(text)
+
+                    # Add two line breaks
+                    paragraph.add_run().add_break(WD_BREAK.LINE)
+                    paragraph.add_run().add_break(WD_BREAK.LINE)
+
+    # Save the document to a .docx file
+    doc.save(data_dir / f'{time.strftime("%Y-%m-%d-%H-%M-%S")}-AI_gen_regnskabsnotat.docx')
