@@ -1,0 +1,34 @@
+from docx import Document
+
+def find_figures_in_document(docx_filename):
+    # Open the .docx file in binary read mode
+    with open(docx_filename, 'rb') as f:
+        # Load the document with Document
+        doc = Document(f)
+
+        # Initialize an empty list to store the figures
+        figures = []
+
+        # Loop through all the tables in the document
+        for table in doc.tables:
+            # Loop through all the rows in the table
+            for row in table.rows:
+                # Loop through all the cells in the row
+                for cell in row.cells:
+                    # Loop through all the paragraphs in the cell
+                    for paragraph in cell.paragraphs:
+                        # Loop through all the runs in the paragraph
+                        for run in paragraph.runs:
+                            # Check if the run has a picture
+                            if 'graphic' in run._r.xml:
+                                # Add the run to the list of figures
+                                figures.append(run)
+
+        # Return the list of figures
+        return figures
+
+# Call the function to find the figures in the document
+figures = find_figures_in_document(doc_template)
+
+# Print the number of figures found in the document
+print(f"Found {len(figures)} figures in the document.")
