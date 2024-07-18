@@ -1,0 +1,49 @@
+import pandas as pd
+from sqlalchemy import create_engine
+from sqlalchemy.engine import URL
+
+
+class SQL:
+
+    def __init__(self, server):
+
+        self.server = server
+
+        if self.server.lower() in [server]:
+            self.server = 'server'
+        elif self.server.upper() in [server]:
+            self.server = 'server'
+        else:
+            print('Please type a correct server, i.e., X}')
+
+    def execute(self, query, database):
+        con = "Driver={SQL Server};" + f"Server={self.server}; Database={database}; Trusted_Connection=yes"
+        con_url = URL.create("mssql+pyodbc", query={"odbc_connect": con})
+        engine = create_engine(con_url)
+
+        res = pd.read_sql(query, engine)
+
+        if res.shape[0] > 0:
+            print(f'Query executed succesfully with {res.shape[0]} observations.')
+        else:
+            print('Query is not correctly specified...')
+        return res
+
+    def columns(self, table, database):
+        con = "Driver={SQL Server};" + f"Server={self.server}; Database={database}; Trusted_Connection=yes"
+        con_url = URL.create("mssql+pyodbc", query={"odbc_connect": con})
+        engine = create_engine(con_url)
+
+        res = pd.read_sql(f"SELECT COLUMN_NAME, DATA_TYPE, ORDINAL_POSITION, IS_NULLABLE"
+                          f" FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME like '%{table}%'", engine)
+
+        if res.shape[0] > 0:
+            print(f'Table has {res.shape[0]} columns. \n {res.head()}')
+        else:
+            print('Table not found...')
+        return res
+
+# class environment:
+#
+#     def create_env(self, name, path):
+#
