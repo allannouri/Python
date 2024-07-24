@@ -1,8 +1,9 @@
 from docx import Document
+from src.config import data_dir, doc_template
 
-def find_figures_in_document(docx_filename):
+def find_figures_in_document():
     # Open the .docx file in binary read mode
-    with open(docx_filename, 'rb') as f:
+    with open(doc_template, 'rb') as f:
         # Load the document with Document
         doc = Document(f)
 
@@ -27,7 +28,25 @@ def find_figures_in_document(docx_filename):
         # Return the list of figures
         return figures
 
-# Call the function to find the figures in the document
+
+
+def update_figures_in_document(figure_no, png_path):
+
+    # find all figures in the document
+    figures = find_figures_in_document()
+
+    # clear and add figure
+    figures[figure_no].clear()
+    figures[figure_no].add_picture(png_path)
+
+    # save doc
+    Document(doc_template).save('')
+    doc.save(data_dir / f'{time.strftime("%Y-%m-%d")}-AI_gen_regnskabsnotat.docx')
+
+    # Return the list of figures
+    return  figures
+
+# Find all figures in the document
 figures = find_figures_in_document(doc_template)
 
 # Print the number of figures found in the document
