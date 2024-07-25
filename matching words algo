@@ -1,0 +1,23 @@
+def find_closest_match(target, lst):
+    # Split the target string into words
+    target_words = target.split()
+
+    # Initialize the best match index and score
+    best_match_index = None
+    best_match_score = 0
+
+    # Iterate over the list
+    for i, item in enumerate(lst):
+        # Split the current item into words
+        item_words = item.split()
+
+        # Calculate the match score as the number of matching words
+        match_score = sum(word in item_words for word in target_words)
+
+        # If the match score is better than the current best, update the best match
+        if match_score > best_match_score:
+            best_match_index = i
+            best_match_score = match_score
+
+    # Return the index of the best match
+    return best_match_index
