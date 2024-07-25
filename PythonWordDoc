@@ -1,0 +1,149 @@
+import time
+import os
+
+from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.text.run import WD_BREAK
+from docx.shared import Cm
+from src.config import data_dir, doc_template
+
+def create_document_from_template(institute, data_dict):
+    # Load the template document
+    doc = Document(doc_template)
+
+    # Loop through all the paragraphs in the document
+    for paragraph in doc.paragraphs:
+        # Get the entire text of the paragraph
+        paragraph_text = paragraph.text.upper()
+
+        # Check if the paragraph text contains a placeholder in the format [INDSÆT KEY HER]
+        for key in data_dict.keys():
+            placeholder = f"[INDSÆT {key.upper()} HER]"
+            if placeholder in paragraph_text:
+                # Clear the paragraph
+                paragraph.clear()
+
+                # Set the alignment of the paragraph to justified
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+
+                # Gather all the content for the key into a single string
+                for subkey, text in data_dict[key].items():
+
+                    if isinstance(text, list):
+                        text = [t.replace("%", " pct.") for t in text]
+                    else:
+                        text = text.replace("%", " pct.")
+
+                    # Add a run with the subkey in bold
+                    run = paragraph.add_run(f"{subkey}: ")
+                    run.bold = True
+
+                    # Add a run with the text
+                    paragraph.add_run(text)
+
+                    # Add two line breaks
+                    paragraph.add_run().add_break(WD_BREAK.LINE)
+                    paragraph.add_run().add_break(WD_BREAK.LINE)
+
+    # Save the document to a .docx file
+    doc.save(data_dir / f'{institute}_{time.strftime("%Y-%m-%d")}.docx')
+
+    # update the figures
+    update_figures_in_document(institute, doc_file = (data_dir / f'{institute}_{time.strftime("%Y-%m-%d")}.docx'))
+
+
+
+
+def find_figures_in_document(doc_template):
+    # Open the .docx file in binary read mode
+    with open(doc_template, 'rb') as f:
+        # Load the document with Document
+        doc = Document(f)
+
+        # Initialize an empty list to store the figures
+        figures = []
+
+        # Loop through all the tables in the document
+        for table in doc.tables:
+            # Loop through all the rows in the table
+            for row in table.rows:
+                # Loop through all the cells in the row
+                for cell in row.cells:
+                    # Loop through all the paragraphs in the cell
+                    for paragraph in cell.paragraphs:
+                        # Loop through all the runs in the paragraph
+                        for run in paragraph.runs:
+                            # Check if the run has a picture
+                            if 'graphic' in run._r.xml:
+                                # Add the run to the list of figures
+                                figures.append(run)
+
+        # Return the list of figures
+        return figures[5:7]
+
+
+def update_figures_in_document(institute, doc_file):
+
+    with open(doc_file, 'rb') as f:
+        # Load the document with Document
+        doc = Document(f)
+
+        # Initialize an empty list to store the figures
+        figures = []
+
+        # Loop through all the tables in the document
+        for table in doc.tables:
+            # Loop through all the rows in the table
+            for row in table.rows:
+                # Loop through all the cells in the row
+                for cell in row.cells:
+                    # Loop through all the paragraphs in the cell
+                    for paragraph in cell.paragraphs:
+                        # Loop through all the runs in the paragraph
+                        for run in paragraph.runs:
+                            # Check if the run has a picture
+                            if 'graphic' in run._r.xml:
+                                # Add the run to the list of figures
+                                figures.append(run)
+
+    figures = figures[5:7] # TODO implement all charts
+
+    path = 'figurer'
+    dir_files = os.listdir(path)
+    idx = find_closest_match(institute, dir_files)
+    directory_path = os.path.join(path, dir_files[idx])
+    files_in_directory  = os.listdir(directory_path)
+    png_files = [os.path.join(directory_path, file) for file in files_in_directory]
+
+    # loop over figure_nos
+    for i in range(len(figures)):
+        figures[i].clear()
+        figures[i].add_picture(png_files[i], width=Cm(9.15), height=Cm(5.13))
+
+    # Save the document to a .docx file
+    doc.save(doc_file)
+
+
+def find_closest_match(target, lst):
+    # Split the target string into words
+    target_words = target.split()
+
+    # Initialize the best match index and score
+    best_match_index = None
+    best_match_score = 0
+
+    # Iterate over the list
+    for i, item in enumerate(lst):
+        # Split the current item into words
+        item_words = item.split()
+
+        # Calculate the match score as the number of matching words
+        match_score = sum(word in item_words for word in target_words)
+
+        # If the match score is better than the current best, update the best match
+        if match_score > best_match_score:
+            best_match_index = i
+            best_match_score = match_score
+
+    # Return the index of the best match
+    return best_match_index
