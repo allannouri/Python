@@ -1,0 +1,40 @@
+import statsmodels.api as sm
+from statsmodels.tsa.stattools import adfuller
+from statsmodels.regression.linear_model import OLS
+
+# Definer dine variable
+y_var = 'udlmarg'
+x_vars = ['indlmarg']
+
+# Sørg for, at dine data er i korrekt format
+assert y_var in df.columns, f"{y_var} not in DataFrame"
+assert all(x in df.columns for x in x_vars), f"Not all x_vars in DataFrame"
+
+# Opret din model
+X = df[x_vars]
+y = df[y_var]
+
+# Tilføj en konstant til dine uafhængige variable
+X = sm.add_constant(X)
+
+# Trin 1: Estimer kointegrationsrelationen ved at regressere y på x
+model = OLS(y, X)
+results = model.fit()
+
+# Få residualerne
+residuals = results.resid
+
+# Trin 2: Test residualerne for en enhedsrod
+adf_test = adfuller(residuals)
+
+print(f"ADF Statistic: {adf_test[0]}")
+print(f"p-value: {adf_test[1]}")
+print("Critical Values:")
+for key, value in adf_test[4].items():
+    print(f"\t{key}: {value}")
+
+# Hvis p-værdien er mindre end 0.05, kan vi afvise nulhypotesen og konkludere, at serien er stationær
+if adf_test[1] < 0.05:
+    print("Serien er stationær. Variablene er kointegrerede.")
+else:
+    print("Serien er ikke-stationær. Variablene er ikke kointegrerede.")
