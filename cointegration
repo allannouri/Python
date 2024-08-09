@@ -2,20 +2,6 @@ import statsmodels.api as sm
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.regression.linear_model import OLS
 
-
-# Læs data fra Excel-filen
-file_path = r'G:\_Sikret\Datafaellesskab\Finansiel Stabilitet 2024-2\3_Indtjening\Data_TSH\Data_ALNO.xlsx'
-df = pd.read_excel(file_path)
-
-# Omdøb kolonner
-df = df.rename(columns={'(ibz-imm)*100': 'ibz_minus_imm_times_100',
-                        'stat_10-stat_2': 'stat_10_minus_stat_2',
-                        'sd(imm*100)': 'sd_imm_times_100'})
-
-# Sæt 'Unnamed: 0' som index og vælg alle observationer hvor indekset er større end 1985
-df.set_index('Unnamed: 0', inplace=True)
-df = df[df.index >= 2005]
-
 # Definer dine variable
 y_var = 'udlmarg'
 x_vars = ['fy_gab', 'stat_10_minus_stat_2','sd_imm_times_100', 'HHI_index', 'kp']
