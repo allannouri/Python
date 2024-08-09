@@ -2,9 +2,25 @@ import statsmodels.api as sm
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.regression.linear_model import OLS
 
+
+# Læs data fra Excel-filen
+file_path = r'G:\_Sikret\Datafaellesskab\Finansiel Stabilitet 2024-2\3_Indtjening\Data_TSH\Data_ALNO.xlsx'
+df = pd.read_excel(file_path)
+
+# Omdøb kolonner
+df = df.rename(columns={'(ibz-imm)*100': 'ibz_minus_imm_times_100',
+                        'stat_10-stat_2': 'stat_10_minus_stat_2',
+                        'sd(imm*100)': 'sd_imm_times_100'})
+
+# Sæt 'Unnamed: 0' som index og vælg alle observationer hvor indekset er større end 1985
+df.set_index('Unnamed: 0', inplace=True)
+df = df[df.index >= 2005]
+
 # Definer dine variable
 y_var = 'udlmarg'
-x_vars = ['indlmarg']
+x_vars = ['fy_gab', 'stat_10_minus_stat_2','sd_imm_times_100', 'HHI_index', 'kp']
+x_vars = ['indlmarg', 'fy_gab', 'kp', 'ibz_minus_imm_times_100', 'stat_10_minus_stat_2']
+x_vars = ['indlmarg', 'fy_gab', 'kp','HHI_index', 'ibz_minus_imm_times_100', 'stat_10_minus_stat_2']
 
 # Sørg for, at dine data er i korrekt format
 assert y_var in df.columns, f"{y_var} not in DataFrame"
@@ -38,3 +54,42 @@ if adf_test[1] < 0.05:
     print("Serien er stationær. Variablene er kointegrerede.")
 else:
     print("Serien er ikke-stationær. Variablene er ikke kointegrerede.")
+
+from statsmodels.tsa.vector_ar.vecm import coint_johansen
+
+# Step 3: Estimate the error correction model
+# First, create a new dataframe that includes the lagged residuals
+df['lagged_residuals'] = residuals.shift()
+
+# Drop the missing values that were created by shifting the residuals
+df.dropna(inplace=True)
+
+# Now, create a new OLS model that includes the lagged residuals
+X = df[['lagged_residuals'] + x_vars]
+y = df[y_var]
+
+# Add a constant to the independent variables
+X = sm.add_constant(X)
+
+# Estimate the model
+model = OLS(y, X)
+results = model.fit()
+
+# Print the summary of the model
+print(results.summary())
+
+# Step 4: Conduct the Johansen test for the rank of cointegration
+johansen_test = coint_johansen(df[[y_var] + x_vars], det_order=0, k_ar_diff=1)
+
+# Print the results of the Johansen test
+print(f"Trace statistic: {johansen_test.lr1}")
+print(f"Critical values: {johansen_test.cvt}")
+print(f"Eigenvalues: {johansen_test.eig}")
+print(f"Eigenvectors: {johansen_test.evec}")
+
+# If the trace statistic is greater than the critical value at the 5% level, we can reject the null hypothesis and conclude that the variables are cointegrated
+if johansen_test.lr1[0] > johansen_test.cvt[0, 1]:
+    print("The variables are cointegrated.")
+else:
+    print("The variables are not cointegrated.")
+
