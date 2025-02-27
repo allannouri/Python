@@ -13,7 +13,7 @@ mail = outlook.CreateItem(0)
 #new_mail.Subject = "{:%m/%d} Report Update".format(date.today())
 
 # Add the to and cc list
-mail.To = 'aln@capital-four.com'
+mail.To = 
 mail.Subject = 'Sample Email'
 text = "Hi, this mail is written from Python."
 mail.HTMLBody = "<body>" + text + "<p><p><p>" + "<body><br>" + \
