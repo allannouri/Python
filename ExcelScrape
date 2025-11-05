@@ -1,0 +1,69 @@
+import os
+
+import pythoncom
+pythoncom.CoInitialize()
+
+from pathlib import Path
+import xlwings as xw
+import pandas as pd
+import os
+
+# Define folder and files
+path = Path.cwd() 
+files_to_process = os.listdir(path)
+
+
+# Collect all matches
+all_matches = []
+
+with xw.App(visible=True, add_book=False) as app:
+    for filename in files_to_process:
+        file_path = path / filename
+        book = app.books.open(file_path)
+        sheet_names = [sheet.name for sheet in book.sheets]
+        valuation_sheet = [name for name in sheet_names if 'valuation' in name.lower()]
+
+        if valuation_sheet:
+            sheet = book.sheets[valuation_sheet[0]]
+            values = sheet.range('A1:CV100').value
+
+            for row_idx, row in enumerate(values):
+                if not isinstance(row, list):
+                    continue
+
+                year_cols = [col_idx for col_idx, cell in enumerate(row)
+                             if isinstance(cell, (int, float)) and 2000 <= int(cell) <= 2100]
+
+                if len(year_cols) >= 3:
+                    for col_idx in range(max(year_cols) + 1, len(row)):
+                        cell = row[col_idx]
+                        if isinstance(cell, str) and 'terminal' in cell.lower().replace(" ", ""):
+                            terminal_col = col_idx + 1
+                            start_row = row_idx + 1
+                            empty_count = 0
+                            current_row = start_row
+
+                            while empty_count < 20:
+                                cell_formula = sheet.range((current_row, terminal_col)).formula
+                                if cell_formula in ("", None):
+                                    empty_count += 1
+                                else:
+                                    empty_count = 0
+                                    row_values = sheet.range((current_row, 1), (current_row, terminal_col)).value
+                                    name_cell = next((c for c in row_values if isinstance(c, str) and c.strip()), None)
+                                    all_matches.append({
+                                            "File": filename,
+                                            "Row": current_row,
+                                            "Column": terminal_col,
+                                            "Name": name_cell,
+                                            "Formula": cell_formula
+                                    })
+                                current_row += 1
+                            break
+                    break
+        book.close()
+
+# Create and display final DataFrame
+df = pd.DataFrame(all_matches)
+print(df)
+df.to_csv(path / 'GetFormulasOutput.csv', sep=";", encoding = 'utf-8-sig')
